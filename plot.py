@@ -1,8 +1,13 @@
-import json, numpy, seaborn
+import json, numpy, seaborn, pandas
 from matplotlib import pyplot
 
 by_gender = {}
-by_lang = {}
+
+# dataframe
+langs = []
+genders = []
+freqs = []
+origins = []
 
 for line in open('clips_analyzed.jsons'):
     try:
@@ -11,12 +16,32 @@ for line in open('clips_analyzed.jsons'):
         break
     if data['freq'] is not None and not numpy.isnan(data['freq']):
         by_gender.setdefault(data['gender'], []).append(data['freq'])
-        by_lang.setdefault(data['lang_code'], []).append(data['freq'])
+        langs.append(data['lang_code'])
+        genders.append(data['gender'])
+        freqs.append(data['freq'])
+        origins.append(data['origin'])
 
-seaborn.distplot(by_gender['male'], color='blue')
-seaborn.distplot(by_gender['female'], color='red')
+# distplot of gender freqs
+bins = numpy.arange(0, 500, 10)
+seaborn.distplot(by_gender['male'], color='blue', bins=bins)
+seaborn.distplot(by_gender['female'], color='red', bins=bins)
+pyplot.xlim([0, 500])
 pyplot.show()
 
-seaborn.distplot(by_lang['en'], color='blue')
-seaborn.distplot(by_lang['ja'], color='red')
+# boxplot of lang freqs
+df = pandas.DataFrame(dict(lang=pandas.Series(langs, dtype='category'),
+                           gender=pandas.Series(genders, dtype='category'),
+                           freq=pandas.Series(freqs)))
+c = df['lang'].value_counts()
+top_langs = c.index[c.values >= 500].tolist()
+mean_freqs = df.groupby(['lang']).mean().to_dict()['freq']
+order = sorted(top_langs, key=lambda lang: mean_freqs[lang])
+seaborn.violinplot(data=df,
+                   x='lang',
+                   y='freq',
+                   hue='gender',
+                   split=True,
+                   order=order),
+#showfliers=False)
+pyplot.ylabel('Pitch (Hz)')
 pyplot.show()
