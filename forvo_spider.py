@@ -1,5 +1,7 @@
 import base64, bs4, json, requests, scrapy, sys
 
+# Run this using "scrapy runspider forvo_spider.py"
+
 def extract_audio(soup):
     for p in soup.find_all('article', {'class': 'pronunciations'}): # should just be 0 or 1
         if not p.find('abbr'):
