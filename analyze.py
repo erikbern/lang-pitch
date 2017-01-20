@@ -1,4 +1,4 @@
-import bisect, json, math, numpy, numpy.fft, os, pandas, random, requests, scipy.signal, sha, soundfile, subprocess, sys, tempfile, traceback
+import h5py, json, numpy, numpy.fft, os, requests, scipy.signal, sha, soundfile, subprocess, traceback
 from matplotlib import pyplot
 
 def freq_from_fft(signal, fs):
@@ -64,10 +64,10 @@ lu2c = {} # (lang, user) to count
 urls = set()
 fs = 22050
 trim_s = 2.0
-
+n_freqs = 500
 df = []
 
-for l in data[:1000]:
+for l in data:
     if l['url'] in urls:
         continue
     urls.add(l['url'])
@@ -86,20 +86,16 @@ for l in data[:1000]:
     if ' from ' in l['origin']:
         origin = l['origin'].split(' from ')[1].rstrip(')')
     else:
-        origin = None
+        origin = ''
     lang = l['lang_code']
 
     fn = download(l['url'])
     signal = get_signal(fn)
     if signal is not None:
         freqs, hz_factor = freq_from_fft(signal, fs)
-        df.append((lang, gender, origin, abs(freqs[:500])))
+        df.append((lang, gender, origin, abs(freqs[:n_freqs])))
 
-df = pandas.DataFrame(df, columns=['lang', 'gender', 'origin', 'freqs'])
-print df
-
-for lang_code, f in base_freqs.iteritems():
-    pyplot.plot(numpy.arange(300) * hz_factor, f[:300] / numpy.max(f), label=lang_code)
-pyplot.legend()
-pyplot.show()
-
+with h5py.File('clips.h5', 'w') as f:
+    for j, column in enumerate(['lang', 'gender', 'origin']):
+        f.create_dataset(column, data=[row[j].encode('utf-8') for row in df], dtype=h5py.special_dtype(vlen=bytes))
+    f.create_dataset('freqs', data=numpy.array([row[3] for row in df]))
