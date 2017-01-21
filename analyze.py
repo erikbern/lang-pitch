@@ -48,7 +48,7 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=3):
 def get_signal(fn, trim_s=0.5):
     try:
         signal, fs = soundfile.read(fn)
-        signal = butter_bandpass_filter(signal, 40., 500., fs)
+        signal = butter_bandpass_filter(signal, 50., 300., fs)
         signal = trim(signal, fs, trim_s)
         assert len(signal) == int(fs * trim_s)
     except:
