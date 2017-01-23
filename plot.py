@@ -10,16 +10,31 @@ def lang_name(lang):
         except KeyError:
             return lang
 
-bootstrap_size = 100
+bootstrap_size = 1000
 hz_factor = 2.0 # TODO: write to h5 file
 f = h5py.File('clips.h5', 'r')
 df = pandas.DataFrame(dict(lang=[lang_name(l) for l in f['lang']],
                            gender=f['gender'],
                            origin=f['origin'],
                            freqs=[numpy.array(freqs) for freqs in f['freqs']]))
-print df['freqs'].shape
+print(df['freqs'].shape)
 
-def plot_spectrum(df, category, limit):
+def plot_fft(df, n, fn):
+    print('plotting %s' % fn)
+    colors = seaborn.color_palette('hls', n)
+    fig = pyplot.figure(figsize=(9, 6))
+    for row, color in zip(df['freqs'][:n], colors):
+        pyplot.plot(numpy.arange(len(row)) * hz_factor, row, color=color)
+    pyplot.xlim([0, 500])
+    pyplot.xlabel('Frequency (Hz)')
+    pyplot.ylabel('FFT coefficient magnitude')
+    fig.tight_layout()
+    pyplot.savefig(fn, dpi=300)
+
+plot_fft(df[(df['lang'] == 'English') & (df['gender'] == 'female')], 10, 'lang_ffts.png')
+
+def plot_spectrum(df, category, limit, fn):
+    print('plotting %s' % fn)
     def conf_int_bootstrap(x):
         bootstraps = numpy.array([
             numpy.mean(numpy.random.choice(x, len(x), replace=True)) * hz_factor
@@ -29,47 +44,65 @@ def plot_spectrum(df, category, limit):
     top = c.index[c.values >= limit].tolist()
     freqs = df.groupby(category)['freqs'].apply(conf_int_bootstrap).to_dict()
     colors = seaborn.color_palette('hls', len(top))
+    fig = pyplot.figure(figsize=(9, 6))
     for cat, color in zip(top, colors):
         data = freqs[cat]
-        pyplot.fill_between(numpy.arange(len(data[0])) * hz_factor, data[0], data[3], color=color + (0.3,), label=cat)
+        pyplot.fill_between(numpy.arange(len(data[0])) * hz_factor, data[0], data[3], color=color + (0.2,), label=cat)
         pyplot.fill_between(numpy.arange(len(data[0])) * hz_factor, data[1], data[2], color=color + (0.5,))
     pyplot.legend()
-    pyplot.show()
+    pyplot.xlim([0, 500])
+    pyplot.xlabel('Frequency (Hz)')
+    pyplot.ylabel('FFT coefficient magnitude')
+    fig.tight_layout()
+    pyplot.savefig(fn, dpi=300)
 
-plot_spectrum(df, 'lang', 4000)
-plot_spectrum(df[df['lang'] == 'English'], 'gender', 0)
+plot_spectrum(df[df['lang'] == 'English'], 'gender', 0, 'lang_en_male_vs_female.png')
+plot_spectrum(df[df['lang'] == 'Chinese'], 'gender', 0, 'lang_zh_male_vs_female.png')
+plot_spectrum(df[df['lang'].isin(['English', 'Swedish', 'Hungarian', 'Chinese']) & (df['gender'] == 'male')], 'lang', 0, 'lang_en_sv_hu_zh_male.png')
+plot_spectrum(df[df['lang'].isin(['English', 'Swedish', 'Hungarian', 'Chinese']) & (df['gender'] == 'female')], 'lang', 0, 'lang_en_sv_hu_zh_female.png')
+plot_spectrum(df[df['lang'].isin(['English', 'Japanese', 'Chinese']) & (df['gender'] == 'male')], 'lang', 0, 'lang_en_jp_zh_male.png')
+plot_spectrum(df[df['lang'].isin(['English', 'Japanese', 'Chinese']) & (df['gender'] == 'female')], 'lang', 0, 'lang_en_jp_zh_female.png')
 
-def plot_comparison(df, category, limit):
+def plot_comparison(df, category, limit, fn):
+    print('plotting %s' % fn)
     def repr_freq_bootstrap(x):
         bootstraps = [
             numpy.argmax(numpy.mean(numpy.random.choice(x, len(x), replace=True))) * hz_factor
             for i in range(bootstrap_size)]
         return pandas.DataFrame({'reprFreq': bootstraps})
 
-    def repr_freq_mean(x):
-        m = numpy.mean(x)
-        return numpy.argmax(m) * hz_factor
-
     c = df[category].value_counts()
     top = c.index[c.values >= limit].tolist()
-    freqs = df.groupby(('gender', category))['freqs'].apply(repr_freq_bootstrap)
-    freqs.reset_index(inplace=True)
-    mean_freqs = df.groupby(('gender', category))['freqs'].apply(repr_freq_mean).to_dict()
-    order = sorted(top, key=lambda lang: (mean_freqs[('male', lang)] + mean_freqs[('female', lang)])/2)
+    freqs = df.groupby(('gender', category))['freqs'].apply(repr_freq_bootstrap).reset_index()
+    median_freqs = freqs.groupby(('gender', category))['reprFreq'].apply(numpy.median)
+    median_freqs_dict = median_freqs.to_dict()
+    order = sorted(top, key=lambda lang: (median_freqs_dict[('male', lang)] + median_freqs_dict[('female', lang)])/2)
+    fig = pyplot.figure(figsize=(9, 1 + 0.3*len(order)))
     for gender, color in [('male', '#6666ff'), ('female', '#ff6666')]:
         seaborn.stripplot(data=freqs[freqs['gender'] == gender],
                           orient='h',
                           y=category,
                           x='reprFreq',
                           order=order,
-                          # showfliers=False,
                           color=color,
-                          size=10,
-                          alpha=0.10,
+                          size=14,
+                          alpha=1.0 * bootstrap_size**-0.75,
                           edgecolor='none')
-    pyplot.show()
+    seaborn.stripplot(data=median_freqs.to_frame('freq').reset_index(),
+                      orient='h',
+                      y=category,
+                      x='freq',
+                      order=order,
+                      facecolors='none',
+                      size=10,
+                      linewidth=2,
+                      edgecolor='#000000')
+    pyplot.xlim([0, 500])
+    pyplot.xlabel('Frequency (Hz)')
+    fig.tight_layout()
+    pyplot.savefig(fn, dpi=300)
 
-# plot_spectrum(df[df['lang'] == 'English'], 'gender')
-plot_comparison(df, 'lang', 500)
-plot_comparison(df[df['lang'] == 'English'], 'origin', 100)
-plot_comparison(df[df['lang'] == 'Spanish'], 'origin', 100)
+plot_comparison(df, 'lang', 400, 'lang_languages_comparison.png')
+plot_comparison(df[df['lang'] == 'English'], 'origin', 100, 'lang_en_origins_comparison.png')
+plot_comparison(df[df['lang'] == 'Spanish'], 'origin', 100, 'lang_sp_origins_comparison.png')
+plot_comparison(df[df['lang'] == 'English'], 'origin', 20, 'lang_en_origins_comparison_ext.png')
