@@ -1,14 +1,15 @@
 import h5py, numpy, pandas, pycountry, seaborn
 from matplotlib import pyplot
 
+lookup_fs = [lambda lang: pycountry.languages.get(alpha_2=lang).name,
+             lambda lang: pycountry.languages.get(alpha_3=lang).name]
+
 def lang_name(lang):
-    try:
-        return pycountry.languages.get(alpha_2=lang).name
-    except KeyError:
+    for f in lookup_fs:
         try:
-            return pycountry.languages.get(alpha_3=lang).name
+            return f(lang)
         except KeyError:
-            return lang
+            pass
 
 bootstrap_size = 1000
 hz_factor = 2.0 # TODO: write to h5 file
@@ -18,6 +19,7 @@ df = pandas.DataFrame(dict(lang=[lang_name(l) for l in f['lang']],
                            origin=f['origin'],
                            freqs=[numpy.array(freqs) for freqs in f['freqs']]))
 print(df['freqs'].shape)
+print(df['lang'].value_counts())
 
 def plot_fft(df, n, fn):
     print('plotting %s' % fn)
@@ -33,35 +35,38 @@ def plot_fft(df, n, fn):
 
 plot_fft(df[(df['lang'] == 'English') & (df['gender'] == 'female')], 10, 'lang_ffts.png')
 
-def plot_spectrum(df, category, limit, fn):
-    print('plotting %s' % fn)
+def plot_spectrum(df, category, options, ax, colors=None):
     def conf_int_bootstrap(x):
         bootstraps = numpy.array([
             numpy.mean(numpy.random.choice(x, len(x), replace=True)) * hz_factor
             for i in range(bootstrap_size)])
         return numpy.percentile(bootstraps, [5, 25, 75, 95], axis=0)
-    c = df[category].value_counts()
-    top = c.index[c.values >= limit].tolist()
     freqs = df.groupby(category)['freqs'].apply(conf_int_bootstrap).to_dict()
-    colors = seaborn.color_palette('hls', len(top))
-    fig = pyplot.figure(figsize=(9, 6))
-    for cat, color in zip(top, colors):
+    if not colors:
+        colors = {cat: color for cat, color in zip(options, seaborn.color_palette('hls', len(options)))}
+    for cat in options:
         data = freqs[cat]
-        pyplot.fill_between(numpy.arange(len(data[0])) * hz_factor, data[0], data[3], color=color + (0.2,), label=cat)
-        pyplot.fill_between(numpy.arange(len(data[0])) * hz_factor, data[1], data[2], color=color + (0.5,))
-    pyplot.legend()
+        ax.fill_between(numpy.arange(len(data[0])) * hz_factor, data[0], data[3], color=colors[cat] + (0.2,), label=cat)
+        ax.fill_between(numpy.arange(len(data[0])) * hz_factor, data[1], data[2], color=colors[cat] + (0.5,))
+    ax.legend()
     pyplot.xlim([0, 500])
     pyplot.xlabel('Frequency (Hz)')
-    pyplot.ylabel('FFT coefficient magnitude')
+    ax.set_ylabel('FFT coefficient magnitude')
+
+def subplot_spectrum_mf(df, languages, fn):
+    print('plotting %s' % fn)
+    fig, ax = pyplot.subplots(2, sharex=True, figsize=(9, 7))
+    plot_spectrum(df[df['gender'] == 'male'], 'lang', languages, ax[0])
+    plot_spectrum(df[df['gender'] == 'female'], 'lang', languages, ax[1])
+    ax[0].set_title('Male speakers')
+    ax[1].set_title('Female speakers')
+    fig.subplots_adjust(hspace=0.1)
     fig.tight_layout()
     pyplot.savefig(fn, dpi=300)
 
-plot_spectrum(df[df['lang'] == 'English'], 'gender', 0, 'lang_en_male_vs_female.png')
-plot_spectrum(df[df['lang'] == 'Chinese'], 'gender', 0, 'lang_zh_male_vs_female.png')
-plot_spectrum(df[df['lang'].isin(['English', 'Swedish', 'Hungarian', 'Chinese']) & (df['gender'] == 'male')], 'lang', 0, 'lang_en_sv_hu_zh_male.png')
-plot_spectrum(df[df['lang'].isin(['English', 'Swedish', 'Hungarian', 'Chinese']) & (df['gender'] == 'female')], 'lang', 0, 'lang_en_sv_hu_zh_female.png')
-plot_spectrum(df[df['lang'].isin(['English', 'Japanese', 'Chinese']) & (df['gender'] == 'male')], 'lang', 0, 'lang_en_jp_zh_male.png')
-plot_spectrum(df[df['lang'].isin(['English', 'Japanese', 'Chinese']) & (df['gender'] == 'female')], 'lang', 0, 'lang_en_jp_zh_female.png')
+subplot_spectrum_mf(df, ['Chinese', 'Japanese', 'Korean'], 'lang_zh_ja_ko.png')    
+subplot_spectrum_mf(df, ['Chinese', 'Yue Chinese', 'Wu Chinese', 'Min Nan Chinese'], 'lang_zh_yue_wuu_nan.png')
+subplot_spectrum_mf(df, ['Swedish', 'Danish', 'Norwegian', 'Finnish'], 'lang_sv_dk_no_fi.png')
 
 def plot_comparison(df, category, limit, fn):
     print('plotting %s' % fn)
@@ -99,10 +104,12 @@ def plot_comparison(df, category, limit, fn):
                       edgecolor='#000000')
     pyplot.xlim([0, 500])
     pyplot.xlabel('Frequency (Hz)')
+    pyplot.ylabel('')
     fig.tight_layout()
     pyplot.savefig(fn, dpi=300)
 
 plot_comparison(df, 'lang', 400, 'lang_languages_comparison.png')
 plot_comparison(df[df['lang'] == 'English'], 'origin', 100, 'lang_en_origins_comparison.png')
 plot_comparison(df[df['lang'] == 'Spanish'], 'origin', 100, 'lang_sp_origins_comparison.png')
-plot_comparison(df[df['lang'] == 'English'], 'origin', 20, 'lang_en_origins_comparison_ext.png')
+plot_comparison(df[df['lang'] == 'Arabic'], 'origin', 100, 'lang_ar_origins_comparison.png')
+

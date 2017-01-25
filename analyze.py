@@ -10,9 +10,9 @@ def freq_from_fft(signal, fs):
     return f, hz_factor
 
 
-def download(url, fs=22050):
-    fn_mp3 = 'clips/%s.mp3' % sha.new(url).hexdigest()
-    fn_wav = 'clips/%s.wav' % sha.new(url).hexdigest()
+def download(url, h, fs=22050):
+    fn_mp3 = 'clips/%s.mp3' % h
+    fn_wav = 'clips/%s.wav' % h
     if not os.path.exists(fn_mp3):
         print 'downloading %s -> %s' % (url, fn_mp3)
         res = requests.get(url)
@@ -56,8 +56,11 @@ def get_signal(fn, trim_s=0.5):
         return None
     return signal
 
+cur_files = set([fn.split('.')[0] for fn in os.listdir('clips') if fn.endswith('.wav')])
 data = [json.loads(line.strip()) for line in open('clips.jsons')]
-data.sort(key=lambda l: sha.new(l['url']).hexdigest())
+for d in data:
+    d['hash'] = sha.new(d['url']).hexdigest()
+data.sort(key=lambda d: (1-int(d['hash'] in cur_files), d['hash']))
 
 f = open('clips_analyzed_2.jsons', 'w')
 lu2c = {} # (lang, user) to count
@@ -89,7 +92,7 @@ for l in data:
         origin = ''
     lang = l['lang_code']
 
-    fn = download(l['url'])
+    fn = download(l['url'], l['hash'])
     signal = get_signal(fn)
     if signal is not None:
         freqs, hz_factor = freq_from_fft(signal, fs)
