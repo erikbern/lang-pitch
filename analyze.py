@@ -89,7 +89,7 @@ for l in data:
     if ' from ' in l['origin']:
         origin = l['origin'].split(' from ')[1].rstrip(')')
     else:
-        origin = ''
+        continue
     lang = l['lang_code']
 
     fn = download(l['url'], l['hash'])
