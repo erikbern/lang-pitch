@@ -1,8 +1,15 @@
 import h5py, numpy, pandas, pycountry, seaborn
 from matplotlib import pyplot
 
-lookup_fs = [lambda lang: pycountry.languages.get(alpha_2=lang).name,
-             lambda lang: pycountry.languages.get(alpha_3=lang).name]
+lookup_fs = [
+    # a few languages have the wrong name in pycountry imo
+    lambda lang: {'zh': u'Mandarin Chinese',
+                  'el': u'Greek',
+                  'no': u'Norwegian'}[lang],
+    lambda lang: pycountry.languages.get(alpha_2=lang).name,
+    lambda lang: pycountry.languages.get(alpha_3=lang).name
+]
+
 
 def lang_name(lang):
     for f in lookup_fs:
@@ -77,8 +84,8 @@ def subplot_spectrum_langs(df, languages, fn):
     pyplot.savefig(fn, dpi=300)
 
 subplot_spectrum_langs(df, ['English', 'Spanish', 'Russian'], 'pics/en_es_ru.png')
-subplot_spectrum_langs(df, ['Chinese', 'Japanese', 'Korean'], 'pics/zh_ja_ko.png')
-subplot_spectrum_langs(df, ['Chinese', 'Yue Chinese', 'Wu Chinese', 'Min Nan Chinese'], 'pics/zh_yue_wuu_nan.png')
+subplot_spectrum_langs(df, ['Mandarin Chinese', 'Japanese', 'Korean'], 'pics/zh_ja_ko.png')
+subplot_spectrum_langs(df, ['Mandarin Chinese', 'Yue Chinese', 'Wu Chinese', 'Min Nan Chinese'], 'pics/zh_yue_wuu_nan.png')
 subplot_spectrum_langs(df, ['Swedish', 'Danish', 'Norwegian', 'Finnish'], 'pics/sv_dk_no_fi.png')
 
 def plot_comparison(df, category, limit, fn):

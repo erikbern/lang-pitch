@@ -57,7 +57,12 @@ def get_signal(fn, trim_s=0.5):
     return signal
 
 cur_files = set([fn.split('.')[0] for fn in os.listdir('clips') if fn.endswith('.wav')])
-data = [json.loads(line.strip()) for line in open('clips.jsons')]
+data = []
+for line in open('clips.jsons'):
+    try:
+        data.append(json.loads(line.strip()))
+    except:
+        print(line)
 for d in data:
     d['hash'] = sha.new(d['url']).hexdigest()
 data.sort(key=lambda d: (1-int(d['hash'] in cur_files), d['hash']))
